@@ -1,0 +1,176 @@
+from __future__ import absolute_import, unicode_literals
+from __future__ import division, print_function
+import discord
+import os
+import lavalink
+import B
+import asyncio
+import discord.utils
+import random
+import datetime
+import time
+import json
+import aiohttp
+import sqlite3
+import pymongo
+from difflib import SequenceMatcher
+from discord import Webhook, AsyncWebhookAdapter
+import itertools
+import functools
+from async_timeout import timeout
+from pymongo import MongoClient
+from datetime import *
+from pytz import timezone
+import requests
+from io import BytesIO
+from PIL import Image
+from clear_code import clear
+import DatabaseControl
+import GlobalLinker
+import DatabaseConfig
+import urllib3
+today = datetime.today()
+day = today.strftime('%m/%d/%Y %H:%M:%S')
+coin = ["Heads", "Tails", "Heads", "Tails", "Heads", "Tails", "Heads", "Tails","HA! The coin fell off the table! No one wins! (or loses....)"]
+flip = coin[random.randint(0, 8)]
+key = os.getenv('key')
+wkey = os.getenv('wkey')
+
+client = discord.Client()
+discordprefix = "starlink+"
+time_location = "America/New_York"
+
+from discord_webhook import DiscordWebhook
+
+@client.event
+async def on_ready():
+    print('Logged in as:')
+    print("Username:", client.user.name + " #6089")
+    print("Client ID:", client.user.id)
+    print("Bot Creator: Shadi#7894")
+    await client.change_presence(status=discord.Status.idle, activity=discord.Activity(type=discord.ActivityType.playing, name=" starlink+help"))
+
+@client.event
+async def on_message(message):
+  user = message.author
+  time = message.created_at
+  #CHANNEL LINKER COMMANDS
+  if not message.author.bot: #Channel Link Message Repeater
+    if not message.content.startswith(discordprefix):
+      ret_str = str(user) +": "+GlobalLinker.FilterMessage(message)
+      for gChan in DatabaseConfig.db.g_link_testing.find():
+        if message.channel.id == gChan['chan_id']:
+          for gChan in DatabaseConfig.db.g_link_testing.find():
+            if message.guild.id != gChan['ser_id']:
+              embed = discord.Embed(title=message.author.name, color=random.randint(0, 16777215))
+              pfp = message.author.avatar_url
+              icon = message.guild.icon_url
+              embed.set_thumbnail(url=(pfp))
+              embed.set_author(name=message.guild.name,icon_url=(icon))
+              embed.set_footer(text="Credits to JDJG Inc. Official#3493 and RenDev#2616!")
+              embed.add_field(name=str(GlobalLinker.FilterMessage(message)),value=day,inline=True)
+              channel = client.get_channel(gChan['chan_id'])
+              await channel.send(embed=embed)
+      for chanId in DatabaseControl.GetLinkedChannelsList(message.channel.id):
+        await client.get_channel(chanId).send(ret_str)
+        if len(message.attachments) !=0: #attachment Code
+          picture = str(message.attachments[0].url)
+          await client.get_channel(chanId).send(picture)
+  if message.content.startswith(discordprefix+"GetChannelId") and not message.author.bot:
+    await message.channel.send(message.channel.id)
+    return 
+  if message.content.startswith(discordprefix+"linkchannel") and not message.author.bot:
+      n1 = str(message.content.split(" ")[1])
+      n1 = DatabaseControl.to_ChannelId(n1)
+      n2 = str(message.content.split(" ")[2])
+      n2 = DatabaseControl.to_ChannelId(n2)
+      await message.channel.send(DatabaseControl.AddChannelLink(n1,n2))
+      return
+  if message.content.startswith(discordprefix+"deletelink") and not message.author.bot:
+      if n1 == None or n2 == None:
+        n1 = str(message.content.split(" ")[1])
+        n1 = DatabaseControl.to_ChannelId(n1)
+        n2 = str(message.content.split(" ")[2])
+        n2 = DatabaseControl.to_ChannelId(n2)
+        await message.channel.send(DatabaseControl.DeleteChannelLink_ChanNum(n1,n2))
+        return
+  if message.content.startswith(discordprefix+"global") and not message.author.bot:
+    args = "NULL"
+    try:
+      args = message.content.split(" ")[1]
+    except:
+      await message.channel.send("Did not input an argument!")
+    if(args=="link"):
+      await message.channel.send(GlobalLinker.AddGlobalLink(client,message))
+      return
+    if(args=="delete"):
+      await message.channel.send(GlobalLinker.TerminateLink(message))
+      return
+    if(args=="test"):
+      await GlobalLinker.FindGlobal(message)
+      return
+    await message.channel.send("Valid arguments are link or delete")
+    return
+  if message.content.startswith(discordprefix+"invite") and not message.author.bot:
+    embed = discord.Embed(title = "Here is my invitation link!", description = "https://discord.com/api/oauth2/authorize?client_id=739480439030284390&permissions=379904&scope=bot")
+    await message.channel.send(embed=embed)
+  if message.content.startswith(discordprefix+"help") and not message.author.bot:
+    embed = discord.Embed(title = "Welcome to the Starry Linker!", description = "My prefix is ``starlink+``")
+    embed.set_footer(text = "The creator of this app is <@717822288375971900> (Shadi#8794), and many credits are given to <@168422909482762240> (JDJG Inc. Official#3493) and <@357006546674253826> (RenDev#2616) for making much of the code that helps this bot work!)")
+    embed.add_field(name = "Get the Channel ID", value = '``starlink+GetChannelId``')
+    embed.add_field(name = "Global Linker", value = '``starlink+global``')
+    embed.add_field(name = "Link Two Channels", value = '``starlink+linkchannel <id1> <id2>``')
+    embed.add_field(name = "Invite Me!", value = '``starlink+invite``')
+    await message.channel.send(embed=embed)
+
+@client.event
+async def on_message_delete(message):
+  if not message.author.bot:
+    try:
+     can = await GlobalLinker.FindGlobal(message)
+     for obj in can:
+        channel = client.get_channel(int(obj["chan_id"]))
+        msg= await channel.fetch_message(obj["mes_id"].id)
+        print(msg.id)
+        await msg.delete()
+    except:
+      banana = 0
+
+@client.event
+async def on_typing(channel,user,_time):
+  if not user.bot:
+    #try:
+    docs = DatabaseConfig.db.g_link_testing.find()
+    for chan in docs:
+      if (chan["chan_id"]!=channel.id):
+       # print("CHAN_ID: "+str(chan["chan_id"]))
+        try:
+          #print(client.get_channel(int(chan["chan_id"])).name)
+          await client.get_channel(int(chan["chan_id"])).trigger_typing()
+        except:
+          banana = 1
+    return
+    #except:
+  return
+
+@client.event
+async def on_message_edit(before,after):
+   if not after.author.bot:
+    try:
+     can = await GlobalLinker.FindGlobal(before)
+     newEmbed = GlobalLinker.GetGlobalEmbed(after)
+     for obj in can:
+        channel = client.get_channel(int(obj["chan_id"]))
+        msg= await channel.fetch_message(obj["mes_id"].id)
+        await msg.edit(embed = newEmbed)
+    except:
+      banana = 0
+
+@client.event
+async def on_command_error(message, error):
+  await message.channel.send("There has been an error!!")
+  await message.channel.send(f'{error}')
+  return
+
+B.b()
+client.run(os.getenv('TOKEN'))
