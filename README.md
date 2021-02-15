@@ -40,3 +40,4 @@ And even interactive commands to make you feel less lonely :sparkling_heart:
 You will be kept entertained by Cassandra, we guarantee it**
 
 https://discord.gg/xp7y77MXHk# Starry-Linker-6089
+# Starry-Linker-6089
